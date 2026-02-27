@@ -1,3 +1,9 @@
 build/
+vendored/
 examples/
+.cache/
+*.log
+*.tmp
+
+
 
