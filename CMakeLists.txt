@@ -13,7 +13,7 @@ add_subdirectory(vendored/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(vendored/SDL_ttf EXCLUDE_FROM_ALL)
 
 # Create the editor executable
-add_executable(main WIN32 main.c text_buffer.c)
+add_executable(main WIN32 main.c text_buffer.c document.c)
 
 # Link to SDL3 and SDL3_ttf
 target_link_libraries(main PRIVATE SDL3_ttf::SDL3_ttf SDL3::SDL3)
