@@ -1,14 +1,16 @@
+#include "text_buffer.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_error.h>
-#include <SDL3_ttf/SDL_ttf.h>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_video.h>
-#include "text_buffer.h"
+#include <SDL3_ttf/SDL_ttf.h>
 
 // TODO: add cursor position, selection, etc. and render them
 
 int main(int argc, char *argv[]) {
+    TextBuffer *lines[101];
+
     TextBuffer *tb = tb_create(100);
 
     SDL_Init(SDL_INIT_VIDEO);
@@ -31,7 +33,7 @@ int main(int argc, char *argv[]) {
     bool running = true;
     SDL_Event event;
     SDL_StartTextInput(window);
-    SDL_TextInputEvent text;                /**< Text input event data */
+    SDL_TextInputEvent text; /**< Text input event data */
     while (running) {
         // 1. Poll all pending events
         while (SDL_PollEvent(&event)) {
@@ -42,6 +44,12 @@ int main(int argc, char *argv[]) {
                 tb_append(tb, event.text.text);
                 TTF_SetTextString(ttf_text, tb->text, tb->length);
             }
+            if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_BACKSPACE && tb->length > 0) {
+                tb->text[tb->length - 1] = '\0';
+                tb->length--;
+                TTF_SetTextString(ttf_text, tb->text, tb->length);
+            }
+
         }
 
         // 2. Render frame
