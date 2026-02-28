@@ -9,11 +9,13 @@
 #include "document.h"
 #include "text_buffer.h"
 
+#define lerp_speed 5.0f
+
 // TODO: add cursor position, selection, etc. and render them
 
 int main(int argc, char *argv[]) {
-	float cursor_x;
-	float cursor_y;
+	float cursor_x = 0;
+	float cursor_y = 0;
 	Document *doc = doc_create(100);
 
 	SDL_Init(SDL_INIT_VIDEO);
@@ -25,10 +27,14 @@ int main(int argc, char *argv[]) {
 	SDL_Window *window = SDL_CreateWindow("Editor", 1024, 768, SDL_WINDOW_RESIZABLE);
 	SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
 
+	int w_window;
+	int h_window;
+	SDL_GetWindowSizeInPixels(window, &w_window, &h_window);
+
 	TTF_TextEngine *text_engine = TTF_CreateRendererTextEngine(renderer);
 	SDL_Log("text_engine: %p", (void *)text_engine);
 
-	TTF_Font *font = TTF_OpenFont("fonts/ttf/JetBrainsMono-Medium.ttf", 32);
+	TTF_Font *font = TTF_OpenFont("fonts/ttf/JetBrainsMono-Medium.ttf", 64);
 	SDL_Log("font: %p (%s)", (void *)font, font ? "ok" : SDL_GetError());
 
 	int line_height = TTF_GetFontLineSkip(font);
@@ -43,12 +49,23 @@ int main(int argc, char *argv[]) {
 	bool running = true;
 	SDL_Event event;
 	SDL_StartTextInput(window);
-	SDL_TextInputEvent text; /**< Text input event data */
+
+	float camera_x = 0;
+	float camera_y = 0;
+
+	Uint64 last_time = SDL_GetTicks();
 	while (running) {
+		Uint64 current_time = SDL_GetTicks();
+		float delta_time = (current_time - last_time) / 1000.0f; // seconds since last frame
+		last_time = current_time;
+
 		// 1. Poll all pending events
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EVENT_QUIT)
 				running = false;
+
+			if (event.type == SDL_EVENT_WINDOW_RESIZED)
+				SDL_GetWindowSizeInPixels(window, &w_window, &h_window);
 
 			if (event.type == SDL_EVENT_TEXT_INPUT)
 				doc_insert_text(doc, event.text.text);
@@ -73,24 +90,48 @@ int main(int argc, char *argv[]) {
 		}
 
 		// 2. Render frame
-		// loop through doc: TTF_SetTextString(ttf_text, tb->text, tb->length);
-		SDL_SetRenderDrawColor(renderer, 0, 128, 0, 255);
+
+		cursor_x = doc->cursor.col * font_width;
+		cursor_y = doc->cursor.row * line_height;
+
+		float margin_x = w_window * 0.2f; // 30% from each edge
+		float margin_y = h_window * 0.2f;
+
+		// Screen-space cursor position
+		float screen_x = cursor_x - camera_x;
+		float screen_y = cursor_y - camera_y;
+
+		// Only push camera when cursor exits the safe zone
+		float target_x = camera_x;
+		float target_y = camera_y;
+
+		if (screen_x < margin_x)
+			target_x = cursor_x - margin_x;
+		if (screen_x > w_window - margin_x)
+			target_x = cursor_x - (w_window - margin_x);
+		if (screen_y < margin_y)
+			target_y = cursor_y - margin_y;
+		if (screen_y > h_window - margin_y)
+			target_y = cursor_y - (h_window - margin_y);
+
+		camera_x += (target_x - camera_x) * lerp_speed * delta_time;
+		camera_y += (target_y - camera_y) * lerp_speed * delta_time;
+
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		SDL_RenderClear(renderer);
 		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
 		for (size_t i = 0; i < doc->length; i++) {
 			TTF_SetTextString(ttf_text, doc->text_buffer[i]->text,
 					  doc->text_buffer[i]->length);
-			TTF_DrawRendererText(ttf_text, 0, i * line_height);
+			TTF_DrawRendererText(ttf_text, -camera_x, i * line_height - camera_y);
 		}
 
-		cursor_x = doc->cursor.col * font_width;
-		cursor_y = doc->cursor.row * line_height;
-
 		// enable blending for transparency
-		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND); 
-		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 128);  // semi-transparent white
-		SDL_FRect cursor_rect = { cursor_x, cursor_y, font_width, line_height };
+		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 128); // semi-transparent white
+		SDL_FRect cursor_rect = {cursor_x - camera_x, cursor_y - camera_y, font_width,
+					 line_height};
 		SDL_RenderFillRect(renderer, &cursor_rect);
 
 		SDL_RenderPresent(renderer);
